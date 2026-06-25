@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: biblioteca-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "1234"
+    volumes:
+      - ./init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis-cache:
+    image: redis:7-alpine
+    container_name: biblioteca-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - microservices-net
+
+  svc-catalogo:
+    build: ./svc-catalogo
+    container_name: svc-catalogo
+    ports:
+      - "8091:8091"
+    environment:
+      - SPRING_REDIS_HOST=redis-cache
+      - SPRING_REDIS_PORT=6379
+      - DB_HOST=biblioteca-postgres
+      - DB_USER=postgres
+      - DB_PASS=1234
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  svc-prestamos:
+    build: ./svc-prestamos
+    container_name: svc-prestamos
+    ports:
+      - "8092:8092"
+    environment:
+      - SPRING_REDIS_HOST=redis-cache
+      - SPRING_REDIS_PORT=6379
+      - DB_HOST=biblioteca-postgres
+      - DB_USER=postgres
+      - DB_PASS=1234
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  svc-miembros:
+    build: ./svc-miembros
+    container_name: svc-miembros
+    ports:
+      - "8093:8093"
+    environment:
+      - SPRING_REDIS_HOST=redis-cache
+      - SPRING_REDIS_PORT=6379
+      - DB_HOST=biblioteca-postgres
+      - DB_USER=postgres
+      - DB_PASS=1234
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis-cache:
+        condition: service_started
+    networks:
+      - microservices-net
+
+  nginx-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - svc-catalogo
+      - svc-prestamos
+      - svc-miembros
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
