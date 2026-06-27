@@ -30,7 +30,7 @@ public class MiembrosController {
     }
 
     /** POST /miembros — registrar nuevo miembro */
-    @PostMapping
+    @PostMapping("/miembro")
     public ResponseEntity<Miembro> crearMiembro(@Valid @RequestBody MiembroDTO dto) {
         Miembro creado = miembrosService.crearMiembro(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(creado);
